@@ -28,6 +28,10 @@ general) under one pre-registered analysis.
 | Pre-registration lock on the shifted split | `src/rdgen/pipeline/prereg.py`, `configs/prereg.yaml` |
 
 ## Install
+First create a fresh env for the project.
+```bash
+conda create -n rdgen python=3.11 -y && conda activate rdgen
+```
 
 ```bash
 pip install -e ".[dev]"          # analysis, estimators, tests (CPU)
