@@ -29,6 +29,10 @@ general) under one pre-registered analysis.
 
 ## Install
 
+Create a fresh environment for the project to avoid clashes with the rest of your Anaconda installation
+```bash
+conda create -n rdgen python=3.11 -y && conda activate rdgen
+```
 ```bash
 pip install -e ".[dev]"          # analysis, estimators, tests (CPU)
 pip install -e ".[gpu,dev]"      # + torch, transformers, peft for real models
