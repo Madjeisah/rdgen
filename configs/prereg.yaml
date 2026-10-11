@@ -1,0 +1,62 @@
+# Pre-registration (lock with `rdgen prereg-lock configs/prereg.yaml` before any
+# shifted-test evaluation; the evaluator refuses to score test_shift otherwise).
+# Any change after locking breaks the hash and must be reported as an amendment.
+
+hypotheses:
+  H1: >
+    In-domain record-dependence (RD) predicts shifted accuracy beyond in-domain
+    accuracy: the RD coefficient in the probit model is positive when pooled
+    across domains (one-sided alpha 0.05) and in at least 3 of 4 domains.
+  H1_causal: >
+    Among model pairs matched on in-domain accuracy (|diff| <= 0.01) within the
+    same base model, the higher-RD model has higher shifted accuracy (tau > 0).
+  H2: >
+    Necessity-gated adaptation data retains at least 70% of the ungated shifted
+    accuracy gain (tested as a difference, see h2) with no loss of RD relative
+    to the fine-tuned model without augmentation.
+
+estimator:
+  primary: RD                 # deletion, control-corrected, pos + span items
+  control_correction: union   # (p - c) / (1 - c); see estimators.correct_for_control
+  closure_mode: full          # gold + span matches + verifier-positive retrieved units
+  verifier_tau: 0.5
+  deletion_polarities: [pos, span]
+  substitution_for: [explicit_neg, span]
+  correctness: normalised exact match; categorical labels mapped before comparison
+
+analysis:
+  primary_predictor: RD
+  secondary_predictors: [TR, RD_raw, cc_dependence]   # ablations, exploratory
+  covariates: [context, log_size]
+  alpha: 0.05
+  alpha_domain: 0.05
+  k_domains_required: 3
+  n_boot_family: 200
+  criteria: [acc_id, RD, combined, aotl_pred, atc_pred, doc_pred, cc_dependence]
+
+ablation:                     # secondary analyses; reported in full, not used to pick the estimator
+  measurement_arms: [primary, no_control, control_difference, control_xor, closure_top1,
+                     closure_gold, del_explicit_neg, del_all_pol, substitution, sufficiency,
+                     verifier_alt, contextcite]
+  predictor_scaling: z_within_domain
+  robustness_subgroups: [trained_only, never_gated, by_context]
+  control_correction_primary: union
+
+h2:
+  modes_tested: [necessity, both]
+  retained_min: 0.7           # gated gain must be at least 0.7 x the ungated gain ...
+  test: difference            # ... tested as D = gain(mode) - 0.7 * gain(none), lower 95% CI > 0
+                              # (a ratio is unstable when the ungated gain is near zero)
+  rd_margin: 0.02             # non-inferiority: lower 95% CI of RD change > -0.02
+  min_ungated_gain: 0.01      # below this the retained share is not reported (D still applies)
+  compared_with: sft          # same base model, seed and domain
+
+interventional:
+  delta_acc_id: 0.01
+  min_rd_gap: 0.05
+  match_on: [base_model]
+
+holdout:
+  shifted_split_used_once: true
+  decisions_made_on: [valid, test_id]
+  seeds_per_config: 3

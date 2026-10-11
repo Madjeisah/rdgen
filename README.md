@@ -28,10 +28,6 @@ general) under one pre-registered analysis.
 | Pre-registration lock on the shifted split | `src/rdgen/pipeline/prereg.py`, `configs/prereg.yaml` |
 
 ## Install
-First create a fresh env for the project.
-```bash
-conda create -n rdgen python=3.11 -y && conda activate rdgen
-```
 
 ```bash
 pip install -e ".[dev]"          # analysis, estimators, tests (CPU)
@@ -59,6 +55,7 @@ transfers.
 python scripts/smoke_hf.py --model Qwen/Qwen2.5-0.5B-Instruct
 
 # 1. Data: obtain raw files under each licence / DUA, set paths in configs/domains.yaml
+#    (MRQA is public: bash scripts/download_mrqa.sh fetches it to the configured paths)
 rdgen prepare --domain mrqa --out data/processed/mrqa.jsonl
 
 # 2. Lock the pre-registration (shifted-split scoring is refused without it)
@@ -67,6 +64,7 @@ rdgen prereg-lock configs/prereg.yaml
 # 3. Pilot on MRQA, then size the population
 python scripts/make_jobs.py --domains mrqa --pilot > pilot_jobs.txt
 sbatch --array=1-$(wc -l < pilot_jobs.txt) scripts/slurm_array.sh pilot_jobs.txt
+#   no Slurm (single workstation): bash scripts/run_local.sh pilot_jobs.txt [--gpus 0,1]
 rdgen aggregate --runs runs --out pilot.csv
 rdgen power --models 12 24 36 48 --beta <pilot estimate> --families 6 --domains 4
 

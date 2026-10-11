@@ -1,0 +1,42 @@
+# Paths to raw data you have obtained under each dataset's licence / DUA.
+# Nothing here is downloaded automatically for credentialed data.
+
+mrqa:
+  loader: mrqa
+  args:
+    in_domain: [data/raw/mrqa/train/SQuAD.jsonl.gz, data/raw/mrqa/train/NewsQA.jsonl.gz,
+                data/raw/mrqa/train/TriviaQA-web.jsonl.gz, data/raw/mrqa/train/SearchQA.jsonl.gz,
+                data/raw/mrqa/train/HotpotQA.jsonl.gz, data/raw/mrqa/train/NaturalQuestionsShort.jsonl.gz]
+    # BioASQ is not on the MRQA bucket (registration at participants-area.bioasq.org);
+    # add data/raw/mrqa/dev/BioASQ.jsonl.gz here if you obtain it.
+    out_domain: [data/raw/mrqa/dev/DROP.jsonl.gz,
+                 data/raw/mrqa/dev/DuoRC.ParaphraseRC.jsonl.gz, data/raw/mrqa/dev/RACE.jsonl.gz,
+                 data/raw/mrqa/dev/RelationExtraction.jsonl.gz, data/raw/mrqa/dev/TextbookQA.jsonl.gz]
+    max_per_file: 2000
+
+qasper:                       # shifted test comes from PubMedQA (see shift_from)
+  loader: qasper
+  args:
+    train: data/raw/qasper/qasper-train-v0.3.json
+    valid: data/raw/qasper/qasper-dev-v0.3.json
+    test: data/raw/qasper/qasper-test-v0.3.json
+  shift_from: {loader: pubmedqa, args: {path: data/raw/pubmedqa/ori_pqal.json}}
+
+contractnli:
+  loader: contractnli
+  args:
+    files: [data/raw/contractnli/train.json, data/raw/contractnli/dev.json, data/raw/contractnli/test.json]
+    shift: source             # verify the source split first; else use: hypothesis
+    train_source: edgar
+
+i2b2_2010:                    # n2c2 DUA required
+  loader: i2b2_2010
+  args: {root: data/raw/i2b2_2010, train_site: partners, shift_site: beth}
+
+medqaro:                      # CC BY-NC-SA 4.0; polarity file from WP1 annotation
+  loader: medqaro
+  args:
+    path: data/raw/medqaro/medqaro.jsonl
+    polarity_file: data/annotations/medqaro_polarity.csv
+    shift: s2
+  lang: ro

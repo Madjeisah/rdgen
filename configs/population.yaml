@@ -1,0 +1,56 @@
+# Model population (protocol step 1). Open-weight models only.
+# Check every model id and licence before running; some are gated on the Hub
+# and newer releases may supersede these. Sizes in billions of parameters.
+
+families:
+  llama:
+    - {id: meta-llama/Llama-3.2-1B-Instruct, size_b: 1.2}
+    - {id: meta-llama/Llama-3.2-3B-Instruct, size_b: 3.2}
+    - {id: meta-llama/Llama-3.1-8B-Instruct, size_b: 8.0}
+  qwen:
+    - {id: Qwen/Qwen2.5-1.5B-Instruct, size_b: 1.5}
+    - {id: Qwen/Qwen2.5-7B-Instruct, size_b: 7.6}
+    - {id: Qwen/Qwen2.5-14B-Instruct, size_b: 14.7}
+  mistral:
+    - {id: mistralai/Mistral-7B-Instruct-v0.3, size_b: 7.2}
+    - {id: mistralai/Ministral-8B-Instruct-2410, size_b: 8.0}
+  gemma:
+    - {id: google/gemma-2-2b-it, size_b: 2.6}
+    - {id: google/gemma-2-9b-it, size_b: 9.2}
+  phi:
+    - {id: microsoft/Phi-4-mini-instruct, size_b: 3.8}
+    - {id: microsoft/phi-4, size_b: 14.7}
+  olmo:                       # public training data -> contamination check
+    - {id: allenai/OLMo-2-0425-1B-Instruct, size_b: 1.5}
+    - {id: allenai/OLMo-2-1124-7B-Instruct, size_b: 7.3}
+    - {id: allenai/OLMo-2-1124-13B-Instruct, size_b: 13.7}
+
+regimes: [zeroshot, sft, sft_evidence, abstain_aug, gated, retrieval]
+seeds: [0, 1, 2]
+
+context:
+  trim: {strategy: trim, max_tokens: 2048}
+  retrieval: {strategy: retrieve, top_k: 10}
+
+training:                    # MedQARo optimum, reused for comparability
+  lr: 2.0e-5
+  epochs: 2
+  grad_accum: 8
+  lora_r: 8
+  lora_alpha: 16
+  lora_dropout: 0.05
+  abstain_aug_rate: 0.3
+
+# Gate ablation (H2): one gated model per mode, compared with sft on the same
+# base model and seed. Probes and the gate verifier must not be the models or
+# verifier used to measure record-dependence (Goodhart guard).
+gate_ablation:
+  modes: [none, entailment, necessity, both]
+
+# Pilot (step 7): run a subset on MRQA first, then size the population with
+# `rdgen power` using the pilot's estimates.
+pilot:
+  domain: mrqa
+  families: [qwen, llama, olmo]
+  regimes: [zeroshot, sft, abstain_aug]
+  seeds: [0]
