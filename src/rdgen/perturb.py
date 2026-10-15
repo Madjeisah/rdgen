@@ -119,6 +119,57 @@ class Substitution:
     expected: str
 
 
+_MONTHS = ("january february march april may june july august september october "
+           "november december jan feb mar apr jun jul aug sep sept oct nov dec").split()
+_NUMWORDS = set("zero one two three four five six seven eight nine ten eleven twelve "
+                "hundred thousand million billion first second third".split())
+
+
+def answer_shape(ans: str) -> str:
+    """Coarse type of a span answer, used to pick a plausible substitute.
+
+    A substitute of a different type ("1997" -> "the Treaty of Paris") makes the
+    edited document incoherent, and a model that declines to repeat it is not
+    thereby shown to be guessing. Matching the type keeps substitution a test of
+    reading.
+    """
+    a = ans.strip()
+    low = a.lower()
+    toks = low.replace(",", " ").split()
+    if re.fullmatch(r"(1[0-9]|20)\d\d", a):
+        return "year"
+    if any(t.strip(".") in _MONTHS for t in toks) and any(ch.isdigit() for ch in a):
+        return "date"
+    if re.fullmatch(r"[$£€]?\s*[\d.,]+\s*(%|percent|million|billion|thousand)?", low) or (
+            toks and all(t in _NUMWORDS or t.replace(".", "").isdigit() for t in toks)):
+        return "number"
+    words = [w for w in re.findall(r"[A-Za-z][\w'-]*", a)]
+    if words and all(w[0].isupper() for w in words if len(w) > 3):
+        return "name"
+    return "phrase"
+
+
+def _length_bucket(ans: str) -> int:
+    n = len(ans.split())
+    return 0 if n <= 1 else (1 if n <= 3 else 2)
+
+
+def pick_substitute(gold: str, alt_answers: Sequence[str], rng: random.Random,
+                    avoid_text: str = "") -> str | None:
+    """Alternative answer of the same shape (and, if possible, length) that does
+    not already occur in the document."""
+    g = normalize_text(gold)
+    avoid = avoid_text.lower()
+    pool = [a for a in alt_answers
+            if normalize_text(a) and normalize_text(a) != g and a.lower() not in avoid]
+    if not pool:
+        return None
+    shape, lb = answer_shape(gold), _length_bucket(gold)
+    same = [a for a in pool if answer_shape(a) == shape]
+    closest = [a for a in same if _length_bucket(a) == lb] or same
+    return rng.choice(closest) if closest else None
+
+
 def substitute(item: Item, closure: Sequence[int], alt_answers: Sequence[str],
                rng: random.Random) -> Substitution | None:
     """Change the answer-bearing value everywhere it occurs.
@@ -137,22 +188,22 @@ def substitute(item: Item, closure: Sequence[int], alt_answers: Sequence[str],
             units[int(k)] = txt
         return Substitution(item.with_units(units, item.evidence, perturbation="substitution"),
                             flip["answer"])
-    gold = normalize_text(item.answer)
-    cands = [a for a in alt_answers if normalize_text(a) and normalize_text(a) != gold]
-    if not cands or not closure:
+    if not closure:
         return None
-    alt = rng.choice(cands)
+    alt = pick_substitute(item.answer, alt_answers, rng, avoid_text=" ".join(item.units))
+    if alt is None:          # no plausible substitute of the same type: skip, do not force one
+        return None
     pat = re.compile(re.escape(item.answer), re.I)
     units = list(item.units)
     changed = False
     for i in closure:
-        new = pat.sub(alt, units[i])
+        new = pat.sub(lambda _m: alt, units[i])
         changed |= new != units[i]
         units[i] = new
     # also replace stray mentions outside the closure so no copy survives
     for i, u in enumerate(units):
         if i not in closure and pat.search(u):
-            units[i] = pat.sub(alt, u)
+            units[i] = pat.sub(lambda _m: alt, u)
     if not changed:
         return None
     return Substitution(item.with_units(units, item.evidence, perturbation="substitution"), alt)

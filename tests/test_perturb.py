@@ -56,3 +56,31 @@ def test_categorical_substitution_needs_flip(synth):
     no_flip = pos.with_units(pos.units, pos.evidence)
     no_flip.meta.pop("flip")
     assert substitute(no_flip, pos.evidence, [], random.Random(0)) is None
+
+
+def test_substitute_keeps_answer_type():
+    from rdgen.perturb import answer_shape, pick_substitute
+    rng = random.Random(0)
+    pool = ["1066", "Paris", "the blue whale", "12", "Napoleon Bonaparte", "2001"]
+    assert answer_shape(pick_substitute("1997", pool, rng)) == "year"
+    assert answer_shape(pick_substitute("Barack Obama", pool, rng)) == "name"
+    # no alternative of the same type -> no substitution rather than a forced one
+    assert pick_substitute("42%", ["Paris", "the blue whale"], rng) is None
+    # an alternative already present in the document is not used
+    assert pick_substitute("1997", ["1066", "2001"], rng, avoid_text="Built in 1066.") == "2001"
+
+
+def test_substitution_outcomes_recorded():
+    from rdgen.data.synthetic import load_synthetic
+    from rdgen.estimators import ProbeConfig, probe_model, summarize_probe, point
+    from rdgen.models.mock import MockAnswerer
+    items = load_synthetic(n_source=60, n_target=10, seed=1)
+    m = MockAnswerer("m", reliance=0.5).fit_prior(items)
+    test = [i for i in items if i.split == "test_id"]
+    df = probe_model(m, test, ProbeConfig(seed=0))
+    assert {"pred_sub", "sub_outcome"} <= set(df.columns)
+    s = summarize_probe(df, n_boot=0)
+    shares = [point(s, k) for k in ("TR", "TR_kept_original", "TR_abstained", "TR_followed_partly", "TR_other")]
+    assert abs(sum(shares) - 1) < 1e-9
+    # the mock guesser keeps its prior answer, so 'kept_original' must be present
+    assert point(s, "TR_kept_original") > 0

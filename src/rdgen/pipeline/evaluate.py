@@ -99,7 +99,8 @@ def evaluate_model(model: Answerer, meta: ModelMeta, items: Sequence[Item], out_
            "acc_id": point(summ, "accuracy"),
            "acc_shift": float(s.correct.mean()) if len(s) else np.nan,
            "n_id": int(point(summ, "n_items")), "n_shift": int(len(s))}
-    for k in ("RD", "RD_raw", "RD_diff", "RD_xor", "RD_ctrl_change", "SUF", "TR", "UC", "UC_chance", "AB", "n_rd", "n_tr"):
+    for k in ("RD", "RD_raw", "RD_diff", "RD_xor", "RD_ctrl_change", "SUF", "TR", "UC", "UC_chance", "AB", "n_rd", "n_tr",
+              "TR_kept_original", "TR_abstained", "TR_followed_partly", "TR_other"):
         rec[k] = point(summ, k)
         row = summ[(summ.metric == k) & (summ.stratum == "all")]
         if len(row) and "lo" in row:

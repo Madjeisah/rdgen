@@ -27,7 +27,7 @@ import numpy as np
 import pandas as pd
 
 from .models.base import Answerer
-from .normalize import is_abstention, is_correct, normalize_text, same_answer
+from .normalize import is_abstention, is_correct, normalize_text, same_answer, token_f1
 from .perturb import (build_filler_pool, control_indices, delete, substitute,
                       sufficiency_item, support_closure)
 from .schema import CATEGORICAL_TYPE, Item
@@ -58,10 +58,16 @@ class ProbeConfig:
     seed: int = 0
 
 
+def _alt_key(it: Item) -> str:
+    # question template where one exists; otherwise the source dataset (e.g. the
+    # MRQA sub-dataset), so substitutes come from the same kind of document
+    return it.meta.get("template") or f"{it.answer_type}:{it.meta.get('source', '')}"
+
+
 def _alt_answers(items: Sequence[Item]) -> dict[str, list[str]]:
     by = defaultdict(set)
     for it in items:
-        by[it.meta.get("template", it.answer_type)].add(it.answer)
+        by[_alt_key(it)].add(it.answer)
     return {k: sorted(v) for k, v in by.items()}
 
 
@@ -96,7 +102,7 @@ def probe_model(model: Answerer, items: Sequence[Item], cfg: ProbeConfig = Probe
                     batch.append(sufficiency_item(it, clo, filler, rng))
             if clo:
                 if cfg.do_substitution:
-                    sub = substitute(it, clo, alts.get(it.meta.get("template", it.answer_type), []), rng)
+                    sub = substitute(it, clo, alts.get(_alt_key(it), []), rng)
                     if sub is not None:
                         row["i_sub"] = len(batch)
                         row["sub_expected"] = sub.expected
@@ -124,8 +130,17 @@ def probe_model(model: Answerer, items: Sequence[Item], cfg: ProbeConfig = Probe
             out["kept_suf"] = same_answer(preds[r["i_suf"]].answer, p0.answer, it_type)
         if "i_sub" in r:
             ps = preds[r["i_sub"]].answer
+            out["pred_sub"] = ps
             out["tracked_sub"] = (same_answer(ps, r["sub_expected"], it_type) if it_type == CATEGORICAL_TYPE
                                   else normalize_text(ps) == normalize_text(r["sub_expected"]))
+            # why a substitution was not followed: kept the original answer (a
+            # prior or memorised answer, i.e. guessing), abstained, or other
+            out["sub_outcome"] = ("followed" if out["tracked_sub"]
+                                  else "kept_original" if same_answer(ps, p0.answer, it_type)
+                                  else "abstained" if is_abstention(ps)
+                                  else "followed_partly" if (it_type != CATEGORICAL_TYPE and
+                                                             token_f1(ps, r["sub_expected"]) >= 0.5)
+                                  else "other")
         for k in ("i_orig", "i_del", "i_ctrl", "i_suf", "i_sub"):
             out.pop(k, None)
         rows.append(out)
@@ -177,6 +192,9 @@ def _stats(df: pd.DataFrame, chance: dict[str, float] | None,
         out["n_tr"] = len(t)
         if len(t):
             out["TR"] = t["tracked_sub"].astype(float).mean()
+            if "sub_outcome" in t:
+                for k in ("kept_original", "abstained", "followed_partly", "other"):
+                    out[f"TR_{k}"] = float((t["sub_outcome"] == k).mean())
     return out
 
 
