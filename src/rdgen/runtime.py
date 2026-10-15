@@ -26,10 +26,31 @@ def pick_device(what: str) -> str:
     if os.environ.get("RDGEN_ALLOW_CPU") == "1":
         log(f"WARNING: no GPU visible; running {what} on CPU (RDGEN_ALLOW_CPU=1). This is very slow.")
         return "cpu"
-    raise SystemExit(
-        f"rdgen: no GPU visible to PyTorch while loading {what} "
-        f"(torch {torch.__version__}, torch.cuda.is_available() is False). "
-        "Install a CUDA build of PyTorch, or set RDGEN_ALLOW_CPU=1 to run on CPU anyway.")
+    raise SystemExit(f"rdgen: no GPU available while loading {what}.\n" + _gpu_diagnosis(torch)
+                     + "\nTo run on CPU anyway (very slow), set RDGEN_ALLOW_CPU=1.")
+
+
+def _gpu_diagnosis(torch) -> str:
+    """Say why CUDA is unavailable, instead of just that it is."""
+    if torch.version.cuda is None:
+        return (f"  Cause: this PyTorch ({torch.__version__}) is a CPU-only build.\n"
+                "  Fix: install a CUDA build, e.g. pip install torch --index-url "
+                "https://download.pytorch.org/whl/cu128")
+    lines = [f"  PyTorch {torch.__version__} is a CUDA {torch.version.cuda} build, so reinstalling "
+             "it will not help; the GPU is not reachable from this process."]
+    cvd = os.environ.get("CUDA_VISIBLE_DEVICES")
+    if cvd is not None and cvd.strip() in ("", "-1"):
+        lines.append(f"  Cause: CUDA_VISIBLE_DEVICES='{cvd}' hides all GPUs. Fix: unset CUDA_VISIBLE_DEVICES")
+    try:
+        torch.cuda.init()
+    except Exception as e:  # the real reason is.available() swallows
+        lines.append(f"  CUDA error: {str(e).strip().splitlines()[0]}")
+    if not os.path.exists("/dev/nvidia-uvm"):
+        lines.append("  /dev/nvidia-uvm is missing (common after laptop suspend). "
+                     "Fix: sudo modprobe nvidia_uvm, or reboot")
+    lines.append("  Other fixes: reboot; check the driver with nvidia-smi; "
+                 "add yourself to the video and render groups.")
+    return "\n".join(lines)
 
 
 class Progress:

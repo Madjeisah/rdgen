@@ -82,7 +82,7 @@ def train_lora(items: Sequence[Item], cfg: SFTConfig, chat: bool = True) -> str:
     steps = math.ceil(len(data) * cfg.epochs / (cfg.batch_size * cfg.grad_accum))
     sched = get_cosine_schedule_with_warmup(opt, cfg.warmup_steps, max(steps, 1))
     model.train()
-    log = []
+    train_log = []
     step = 0
     prog = Progress("training batches", cfg.epochs * math.ceil(len(data) / cfg.batch_size))
     done = 0
@@ -106,7 +106,7 @@ def train_lora(items: Sequence[Item], cfg: SFTConfig, chat: bool = True) -> str:
             if (i // cfg.batch_size + 1) % cfg.grad_accum == 0:
                 opt.step(); sched.step(); opt.zero_grad(); step += 1
                 if step % 50 == 0:
-                    log.append({"epoch": ep, "step": step, "loss": out.loss.item()})
+                    train_log.append({"epoch": ep, "step": step, "loss": out.loss.item()})
     out_dir = Path(cfg.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     log(f"saving adapter to {out_dir}")
@@ -114,5 +114,5 @@ def train_lora(items: Sequence[Item], cfg: SFTConfig, chat: bool = True) -> str:
     tok.save_pretrained(out_dir)
     cfg_d = asdict(cfg)
     (out_dir / "train_config.json").write_text(json.dumps(cfg_d, indent=2, default=str))
-    (out_dir / "train_log.json").write_text(json.dumps(log, indent=2))
+    (out_dir / "train_log.json").write_text(json.dumps(train_log, indent=2))
     return str(out_dir)
