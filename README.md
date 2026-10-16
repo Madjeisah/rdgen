@@ -69,6 +69,7 @@ rdgen prereg-lock configs/prereg.yaml
 python scripts/make_jobs.py --domains mrqa --pilot > pilot_jobs.txt
 sbatch --array=1-$(wc -l < pilot_jobs.txt) scripts/slurm_array.sh pilot_jobs.txt
 #   no Slurm (single workstation): bash scripts/run_local.sh pilot_jobs.txt [--gpus 0,1]
+#   print to check variation after successfull run: python scripts/check_rd_variation.py runs_check
 rdgen aggregate --runs runs --out pilot.csv
 rdgen power --models 12 24 36 48 --beta <pilot estimate> --families 6 --domains 4
 
