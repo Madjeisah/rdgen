@@ -1,4 +1,4 @@
-# rdgen — record-dependence generalisation
+# rdgen — record-dependence generalization
 
 Code for testing whether a model's dependence on the document, measured
 in-domain and without target labels, predicts its accuracy under distribution
